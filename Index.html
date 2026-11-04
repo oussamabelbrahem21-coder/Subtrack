@@ -1,0 +1,134 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10172b">
+<title>SubTrack</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:22px;background:#10172b;color:white;font-family:Arial,sans-serif}
+main{max-width:600px;margin:auto}
+h1{color:#a78bfa;font-size:32px}
+p{color:#aeb8d0}
+.card{background:#1b2540;border:1px solid #344064;border-radius:17px;padding:18px;margin:15px 0}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:#252f50;padding:15px;border-radius:12px}
+.stat strong{display:block;font-size:23px;color:#b69aff;margin-top:8px}
+input,select,button{width:100%;padding:13px;margin:7px 0;border-radius:10px;border:0;font-size:16px}
+input,select{background:#303c5e;color:white}
+button{background:#7955e8;color:white;font-weight:bold;cursor:pointer}
+.delete{background:#633b59;padding:9px}
+small{color:#b7bfd2}
+</style>
+</head>
+<body>
+<main>
+<h1>SubTrack ✦</h1>
+<p id="tagline">Tes abonnements sous contrôle.</p>
+
+<div class="card">
+<label id="languageLabel">Langue</label>
+<select id="language">
+<option value="fr">🇫🇷 Français</option>
+<option value="en">🇬🇧 English</option>
+<option value="es">🇪🇸 Español</option>
+<option value="de">🇩🇪 Deutsch</option>
+</select>
+</div>
+
+<div class="stats">
+<div class="stat"><small id="monthlyLabel">Dépenses mensuelles</small><strong id="monthly">0 €</strong></div>
+<div class="stat"><small id="yearlyLabel">Dépenses annuelles</small><strong id="yearly">0 €</strong></div>
+</div>
+
+<div class="card">
+<h2 id="addTitle">Ajouter un abonnement</h2>
+<input id="name" placeholder="Nom de l'abonnement">
+<input id="price" type="number" min="0" step="0.01" placeholder="Prix en euros">
+<select id="frequency">
+<option value="monthly" id="monthlyOption">Mensuel</option>
+<option value="yearly" id="yearlyOption">Annuel</option>
+<option value="weekly" id="weeklyOption">Hebdomadaire</option>
+</select>
+<label id="dateLabel">Prochain paiement</label>
+<input id="date" type="date">
+<button id="addButton">Ajouter</button>
+<p id="error" role="alert"></p>
+</div>
+
+<div class="card">
+<h2 id="listTitle">Mes abonnements</h2>
+<div id="subscriptions"></div>
+<p id="empty">Aucun abonnement pour le moment.</p>
+</div>
+
+<div class="card">
+<h2 id="premiumTitle">SubTrack Premium</h2>
+<p id="premiumText">Bientôt : statistiques avancées et rappels personnalisés.</p>
+</div>
+</main>
+
+<script>
+const translations={
+fr:{tag:"Tes abonnements sous contrôle.",lang:"Langue",month:"Dépenses mensuelles",year:"Dépenses annuelles",add:"Ajouter un abonnement",name:"Nom de l'abonnement",price:"Prix en euros",monthly:"Mensuel",yearly:"Annuel",weekly:"Hebdomadaire",date:"Prochain paiement",button:"Ajouter",list:"Mes abonnements",empty:"Aucun abonnement pour le moment.",premium:"SubTrack Premium",premiumText:"Bientôt : statistiques avancées et rappels personnalisés.",error:"Entre un nom, un prix valide et une date.",remove:"Supprimer",next:"Prochain paiement"},
+en:{tag:"Your subscriptions under control.",lang:"Language",month:"Monthly spending",year:"Yearly spending",add:"Add a subscription",name:"Subscription name",price:"Price in euros",monthly:"Monthly",yearly:"Yearly",weekly:"Weekly",date:"Next payment",button:"Add",list:"My subscriptions",empty:"No subscriptions yet.",premium:"SubTrack Premium",premiumText:"Coming soon: advanced statistics and custom reminders.",error:"Enter a name, a valid price and a date.",remove:"Delete",next:"Next payment"},
+es:{tag:"Tus suscripciones bajo control.",lang:"Idioma",month:"Gastos mensuales",year:"Gastos anuales",add:"Añadir suscripción",name:"Nombre de la suscripción",price:"Precio en euros",monthly:"Mensual",yearly:"Anual",weekly:"Semanal",date:"Próximo pago",button:"Añadir",list:"Mis suscripciones",empty:"Todavía no hay suscripciones.",premium:"SubTrack Premium",premiumText:"Próximamente: estadísticas avanzadas y recordatorios personalizados.",error:"Introduce un nombre, un precio válido y una fecha.",remove:"Eliminar",next:"Próximo pago"},
+de:{tag:"Deine Abos unter Kontrolle.",lang:"Sprache",month:"Monatliche Ausgaben",year:"Jährliche Ausgaben",add:"Abo hinzufügen",name:"Name des Abos",price:"Preis in Euro",monthly:"Monatlich",yearly:"Jährlich",weekly:"Wöchentlich",date:"Nächste Zahlung",button:"Hinzufügen",list:"Meine Abos",empty:"Noch keine Abonnements.",premium:"SubTrack Premium",premiumText:"Demnächst: erweiterte Statistiken und persönliche Erinnerungen.",error:"Bitte Name, gültigen Preis und Datum eingeben.",remove:"Löschen",next:"Nächste Zahlung"}
+};
+
+let lang=localStorage.getItem("subtrack_lang")||"fr";
+let items=JSON.parse(localStorage.getItem("subtrack_items")||"[]");
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat(lang,{style:"currency",currency:"EUR"}).format(n);
+const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function save(){
+ localStorage.setItem("subtrack_items",JSON.stringify(items));
+ render();
+}
+function setLanguage(){
+ lang=$("language").value;
+ localStorage.setItem("subtrack_lang",lang);
+ document.documentElement.lang=lang;
+ const t=translations[lang];
+ const map={tagline:"tag",languageLabel:"lang",monthlyLabel:"month",yearlyLabel:"year",addTitle:"add",monthlyOption:"monthly",yearlyOption:"yearly",weeklyOption:"weekly",dateLabel:"date",addButton:"button",listTitle:"list",empty:"empty",premiumTitle:"premium",premiumText:"premiumText"};
+ Object.entries(map).forEach(([id,key])=>$(id).textContent=t[key]);
+ $("name").placeholder=t.name;
+ $("price").placeholder=t.price;
+ render();
+}
+function render(){
+ let t=translations[lang];
+ let monthly=items.reduce((s,x)=>s+x.price*(x.frequency==="yearly"?1/12:x.frequency==="weekly"?52/12:1),0);
+ $("monthly").textContent=money(monthly);
+ $("yearly").textContent=money(monthly*12);
+ $("subscriptions").innerHTML=items.map((x,i)=>`
+ <div class="stat" style="margin:9px 0">
+ <strong>${escapeHTML(x.name)}</strong>
+ ${money(x.price)} · ${t[x.frequency]}<br>
+ <small>${t.next} : ${escapeHTML(x.date)}</small>
+ <button class="delete" onclick="removeItem(${i})">${t.remove}</button>
+ </div>`).join("");
+ $("empty").hidden=items.length>0;
+}
+function removeItem(i){items.splice(i,1);save()}
+$("addButton").addEventListener("click",()=>{
+ const name=$("name").value.trim();
+ const price=Number($("price").value);
+ const date=$("date").value;
+ if(!name||!Number.isFinite(price)||price<=0||!date){
+  $("error").textContent=translations[lang].error;return;
+ }
+ items.push({name,price,frequency:$("frequency").value,date});
+ $("name").value="";$("price").value="";$("date").value="";
+ $("error").textContent="";
+ save();
+});
+$("language").value=lang;
+$("language").addEventListener("change",setLanguage);
+setLanguage();
+</script>
+</body>
+</html>
